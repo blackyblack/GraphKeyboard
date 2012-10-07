@@ -11,7 +11,9 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.Rect;
+import android.graphics.Paint.Style;
 import android.preference.PreferenceManager;
 import android.text.TextWatcher;
 import android.util.Log;
@@ -46,35 +48,63 @@ public class GraphKeyboard
 	private KeyboardKey fixedTouchedKey = null;
 	
 	private ScheduledThreadPoolExecutor timer = null;
-	private Timeout timeoutFun = null;
 	private ScheduledFuture<?> timeoutCall = null;
 	
 	//private long userDelayMs = longKeyTime;
 	private boolean trackingMode = false;
+	//how to draw a text
+	private Paint paintTrack;
+	//what to draw when in tracking mode
+	public final static String trackingLabel = "TRACKING";
 	
 	public final static int KEYBOARD_USER_INDEX = 0x10100;
 	public final static int KEYBOARD_END_KEYCODE = KEYBOARD_USER_INDEX + 0x100;
 	
-	// A timeout class for a timer
-	final class Timeout implements Runnable
+	// A tracking timeout class for a timer
+	final class TrackingTimeout implements Runnable
 	{
-			public void run() 
-			{
-				if(nowTouchedKey == null)
-					return;
+		public void run() 
+		{
+			Log.v("test", "now touched = " + nowTouchedKey + " fixed touched = " + fixedTouchedKey);
+			
+			if(nowTouchedKey == null)
+				return;
 				
-				//if we press key for more than longKeyTime ms and it is not the same key as previous fixed
-				if(nowTouchedKey == fixedTouchedKey)
-				{		
-					return;
-				}
-				
-				//process touched key by GraphKeyboard (draw fixed, add suggestions)
-				processKey(nowTouchedKey);
-				
-				fixedTouchedKey = nowTouchedKey;
-				prevTouchedKey = nowTouchedKey;
+			//if we press key for more than longKeyTime ms and it is not the same key as previous fixed
+			if(nowTouchedKey == fixedTouchedKey)
+			{		
+				return;
 			}
+				
+			//process touched key by GraphKeyboard (draw fixed, add suggestions)
+			processKey(nowTouchedKey);
+				
+			fixedTouchedKey = nowTouchedKey;
+			prevTouchedKey = nowTouchedKey;
+		}
+	}
+	
+	// A default timeout class for a timer
+	final class DefaultTimeout implements Runnable
+	{
+		public void run() 
+		{
+			trackingMode = true;
+			Log.v("test", "tracking mode ON");
+			
+			if(!trackingMode)
+			{	
+				keyboardMain.put(KEYBOARD_END_KEYCODE, new KeyboardKey("END"));
+			}
+			else
+			{
+				keyboardMain.remove(KEYBOARD_END_KEYCODE);
+			}
+			
+			//when switching to tracking mode - try to select the key
+			//which we are standing on
+			timer.execute(new TrackingTimeout());
+		}
 	}
 	
 	//make layout know where we could draw keys of the keyboard
@@ -88,7 +118,12 @@ public class GraphKeyboard
 		trackingTimeout = prefs.getInt("my_seekbar_preference", MySeekBarPreference.DEFAULT_TRACKING_DELAY);
 		
 		timer = new ScheduledThreadPoolExecutor(3);
-		timeoutFun = new Timeout();
+		
+		paintTrack = new Paint();
+		paintTrack.setColor(Color.RED);
+		paintTrack.setStyle(Style.FILL);
+		///TODO: set text size depending on screen size
+		paintTrack.setTextSize(20);
 	}
 	
 	private void loadDefaultKeys()
@@ -149,6 +184,12 @@ public class GraphKeyboard
 	
 	public synchronized void draw(Canvas canvas)
 	{		
+		if(trackingMode)
+		{
+			///TODO: set text size and position depending on screen size
+			canvas.drawText(trackingLabel, 5, 25, paintTrack);
+		}
+		
 		//draw pressed key
 		if(fixedKey != null)
 		{
@@ -186,6 +227,104 @@ public class GraphKeyboard
 		return null;
 	}
 	
+	private synchronized void finishedInput()
+	{
+		//send result to upper view
+		String input = "";
+			
+		//ask view with result chars to get word
+		if(resultsView != null)
+		{
+			input = resultsView.getWord();
+			mTextWatcher.onTextChanged(input, 0, input.length(), input.length());
+		}
+			
+		if((suggest != null) && (input.length() > 0))
+		{
+			suggest.addStringToUser(input);
+		}
+	}
+	
+	//touch event in tracking mode
+	private synchronized boolean touchEventTracking(int eventAction)
+	{
+		//if our event does not touch a key - ignore it
+		if((nowTouchedKey == null) && 
+				(eventAction != MotionEvent.ACTION_UP) &&
+				(eventAction != MotionEvent.ACTION_CANCEL))
+		{			
+			if(timeoutCall != null)
+				timeoutCall.cancel(false);
+			
+			return false;
+		}
+		
+		//if we detected touch on a key
+		if(eventAction == MotionEvent.ACTION_DOWN)
+		{
+			fixedTouchedKey = null;
+			prevTouchedKey = nowTouchedKey;
+			
+			if(timeoutCall != null)
+				timeoutCall.cancel(false);
+			
+			//start timer here since we could not get more events after moving on a key
+			try
+			{
+				timeoutCall = timer.schedule(new TrackingTimeout(), trackingTimeout, TimeUnit.MILLISECONDS);
+			}
+			catch(IllegalStateException e)
+			{
+				return false;
+			}
+					
+			return true;
+		}
+		
+		//if we detected up action - send result string to upper view
+		if((eventAction == MotionEvent.ACTION_UP) || (eventAction == MotionEvent.ACTION_CANCEL))
+		{			
+			if(timeoutCall != null)
+				timeoutCall.cancel(false);
+			
+			finishedInput();
+					
+			return true;
+		}
+		
+		//if we detected move on a key and pause on it for longKeyTime ms
+		if(eventAction == MotionEvent.ACTION_MOVE)
+		{				
+			//if we changed key before timer expired			
+			//fixedTouchedKey = null;
+			if(prevTouchedKey == nowTouchedKey)
+				return true;
+			
+			if(timeoutCall != null)
+				timeoutCall.cancel(false);
+			
+			//start timer here since we could not get more events after moving on a key	
+			try
+			{
+				timeoutCall = timer.schedule(new TrackingTimeout(), trackingTimeout, TimeUnit.MILLISECONDS);
+			}
+			catch(IllegalStateException e)
+			{
+				return false;
+			}
+			
+			return true;
+		}
+		
+		Log.v("test", "action is " + eventAction);
+		
+		if(timeoutCall != null)
+			timeoutCall.cancel(false);
+		
+		fixedTouchedKey = null;
+		return false;
+	}
+	
 	//обработка прикосновения - пересылаем его всем клавишам
 	//возвращает true, если событие принадлежит именно этому
 	//объекту
@@ -193,15 +332,9 @@ public class GraphKeyboard
 	{		
 		nowTouchedKey = findKeyByEvent(event);
 		
-		//if our event does not touch a key - ignore it
-		if((nowTouchedKey == null) && 
-				(event.getAction() != MotionEvent.ACTION_UP) &&
-				(event.getAction() != MotionEvent.ACTION_CANCEL))
-		{			
-			if(timeoutCall != null)
-				timeoutCall.cancel(false);
-			
-			return false;
+		if(trackingMode)
+		{
+			return touchEventTracking(event.getAction());
 		}
 		
 		//if we detected touch on a key
@@ -213,12 +346,10 @@ public class GraphKeyboard
 			if(timeoutCall != null)
 				timeoutCall.cancel(false);
 			
-			timeoutFun = new Timeout();
-			
 			//start timer here since we could not get more events after moving on a key
 			try
 			{
-				timeoutCall = timer.schedule(timeoutFun, trackingTimeout, TimeUnit.MILLISECONDS);
+				timeoutCall = timer.schedule(new DefaultTimeout(), trackingTimeout, TimeUnit.MILLISECONDS);
 			}
 			catch(IllegalStateException e)
 			{
@@ -234,45 +365,19 @@ public class GraphKeyboard
 			if(timeoutCall != null)
 				timeoutCall.cancel(false);
 			
-			//send result to upper view
-			String input = "";
-			
-			//ask view with result chars to get word
-			if(resultsView != null)
-			{
-				input = resultsView.getWord();
-				mTextWatcher.onTextChanged(input, 0, input.length(), input.length());
-			}
-			
-			if((suggest != null) && (input.length() > 0))
-			{
-				suggest.addStringToUser(input);
-			}
+			if(nowTouchedKey == null)
+				return true;
 				
-			return true;
+			//process touched key by GraphKeyboard (draw fixed, add suggestions)
+			processKey(nowTouchedKey);
+				
+			fixedTouchedKey = nowTouchedKey;
+			prevTouchedKey = nowTouchedKey;
 		}
 		
-		//if we detected move on a key and pause on it for longKeyTime ms
+		//if we detected move on a key
 		if(event.getAction() == MotionEvent.ACTION_MOVE)
 		{			
-			//if we changed key before timer expired			
-			//fixedTouchedKey = null;
-			if(prevTouchedKey == nowTouchedKey)
-				return true;
-			
-			if(timeoutCall != null)
-				timeoutCall.cancel(false);
-				
-			//start timer here since we could not get more events after moving on a key	
-			try
-			{
-				timeoutCall = timer.schedule(timeoutFun, trackingTimeout, TimeUnit.MILLISECONDS);
-			}
-			catch(IllegalStateException e)
-			{
-				return false;
-			}
-			
 			return true;
 		}
 		
@@ -288,6 +393,17 @@ public class GraphKeyboard
 	//what to do on key press
 	private synchronized void processKey(KeyboardKey pressedKey)
 	{		
+		//if we selected END key
+		///TODO: add key of the hash-map into each key
+		///      so we could check pressed keys functionality
+		///      without testing KeyboardMain
+		if(!trackingMode && (keyboardMain.get(KEYBOARD_END_KEYCODE) == pressedKey))
+		{
+			Log.v("test", "END key pressed");
+			finishedInput();
+			return;
+		}
+		
 		if(render == null)
 			return;
 		
@@ -381,14 +497,17 @@ public class GraphKeyboard
 		{
 			KeyboardKey key1 = keyboardMain.get(KEYBOARD_END_KEYCODE);
 			
-			key1.paintFont.setColor(Color.WHITE);
-			key1.paintKey.setColor(Color.WHITE);
-			
-			Rect newBounds = new Rect(0, 0, 
-					(int)Math.floor(side * Math.sqrt(key1.keyString.length() / 2)), 
-					(int)Math.floor(side * Math.sqrt(key1.keyString.length() / 2)));
-			
-			render.addShape(new RenderShape(newBounds, KEYBOARD_END_KEYCODE, key1.keyString));
+			if(key1 != null)
+			{
+				key1.paintFont.setColor(Color.WHITE);
+				key1.paintKey.setColor(Color.WHITE);
+				
+				Rect newBounds = new Rect(0, 0, 
+						(int)Math.floor(side * Math.sqrt(key1.keyString.length() / 2)), 
+						(int)Math.floor(side * Math.sqrt(key1.keyString.length() / 2)));
+				
+				render.addShape(new RenderShape(newBounds, KEYBOARD_END_KEYCODE, key1.keyString));
+			}
 		}
 		
 		//2. Render words completion
@@ -485,6 +604,9 @@ public class GraphKeyboard
 			{				
 				KeyboardKey key1 = entry.getValue();
 				Integer id = entry.getKey();
+				
+				if(id == KEYBOARD_END_KEYCODE)
+					continue;
 				
 				key1.paintFont.setColor(Color.GRAY);
 				key1.paintKey.setColor(Color.GRAY);
