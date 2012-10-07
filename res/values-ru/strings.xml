@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">Графическая клавиатура</string>
+    <string name="textview1">Задержка (мс)</string>
+    <string name="ime_name">Графическая клавиатура</string>
+    <string name="ime_settings">Графическая клавиатура. Настройки</string>
+    <string name="settings_delay_option">Задержка слежения</string>
+    
+    <string name="preferences_delay_label_text">Задержка нажатия</string>
+    <string name="preferences_delay_label_summary">Задержка до включения режима слежения</string>
+
+</resources>

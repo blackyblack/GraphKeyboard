@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<PreferenceScreen
+	xmlns:android="http://schemas.android.com/apk/res/android">
+
+	<com.sam.graphkeyboard.MySeekBarPreference
+		android:key="my_seekbar_preference"
+		android:title="@string/preferences_delay_label_text"
+		android:summary="@string/preferences_delay_label_summary" />
+    
+</PreferenceScreen>

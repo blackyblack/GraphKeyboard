@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">GraphKeyboard</string>
+    <string name="textview1">Delay (ms)</string>
+    <string name="ime_name">GraphKeyboard</string>
+    <string name="ime_settings">GraphKeyboardSettings</string>
+    <string name="settings_delay_option">Tracking delay</string>
+    <string name="settings_default_delay_option">100</string>
+    
+    <string name="preferences_delay_label_text">Tracking delay</string>
+    <string name="preferences_delay_label_summary">Tracking delay</string>
+
+</resources>
