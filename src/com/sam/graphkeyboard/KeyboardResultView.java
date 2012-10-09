@@ -55,7 +55,7 @@ public class KeyboardResultView extends View
 	{
 		for(int i = 0; i < value.length(); i++)
 		{
-			KeyboardKey a = new KeyboardKey("" + value.charAt(i));
+			KeyboardKey a = new KeyboardKey(i, "" + value.charAt(i));
 			
 			a.paintFont.setColor(Color.RED);
 			a.paintKey.setColor(Color.RED);

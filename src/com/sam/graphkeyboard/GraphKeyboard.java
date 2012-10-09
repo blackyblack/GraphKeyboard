@@ -1,7 +1,6 @@
 package com.sam.graphkeyboard;
 
 import java.util.List;
-import java.util.Map.Entry;
 import java.util.TreeMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -12,8 +11,8 @@ import android.content.SharedPreferences;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.Rect;
 import android.graphics.Paint.Style;
+import android.graphics.Rect;
 import android.preference.PreferenceManager;
 import android.text.TextWatcher;
 import android.util.Log;
@@ -64,9 +63,7 @@ public class GraphKeyboard
 	final class TrackingTimeout implements Runnable
 	{
 		public void run() 
-		{
-			Log.v("test", "now touched = " + nowTouchedKey + " fixed touched = " + fixedTouchedKey);
-			
+		{			
 			if(nowTouchedKey == null)
 				return;
 				
@@ -94,7 +91,7 @@ public class GraphKeyboard
 			
 			if(!trackingMode)
 			{	
-				keyboardMain.put(KEYBOARD_END_KEYCODE, new KeyboardKey("END"));
+				keyboardMain.put(KEYBOARD_END_KEYCODE, new KeyboardKey(KEYBOARD_END_KEYCODE, "END"));
 			}
 			else
 			{
@@ -140,18 +137,18 @@ public class GraphKeyboard
 		for(int i = 0; i < languageChars.length(); i++)
 		{
 			char a = languageChars.charAt(i);
-			keyboardMain.put((int)(a), new KeyboardKey("" + a));
+			keyboardMain.put((int)(a), new KeyboardKey((int)(a), "" + a));
 			
 		}
 		
-		keyboardMain.put((int)('\''), new KeyboardKey("" + '\''));
-		keyboardMain.put((int)('.'), new KeyboardKey("" + '.'));
-		keyboardMain.put((int)(','), new KeyboardKey("" + ','));
-		keyboardMain.put((int)(' '), new KeyboardKey("" + ' '));
+		keyboardMain.put((int)('\''), new KeyboardKey((int)('\''), "" + '\''));
+		keyboardMain.put((int)('.'), new KeyboardKey((int)('.'), "" + '.'));
+		keyboardMain.put((int)(','), new KeyboardKey((int)(','), "" + ','));
+		keyboardMain.put((int)(' '), new KeyboardKey((int)(' '), "" + ' '));
 		
 		if(!trackingMode)
 		{	
-			keyboardMain.put(KEYBOARD_END_KEYCODE, new KeyboardKey("END"));
+			keyboardMain.put(KEYBOARD_END_KEYCODE, new KeyboardKey(KEYBOARD_END_KEYCODE, "END"));
 		}
 	}
 	
@@ -390,14 +387,16 @@ public class GraphKeyboard
 		return false;
 	}
 	
+	private void renderAddKey(Rect setBounds, KeyboardKey key1)
+	{
+		render.addShape(new RenderShape(setBounds, key1.getKeyId(), key1.keyString));
+	}
+	
 	//what to do on key press
 	private synchronized void processKey(KeyboardKey pressedKey)
 	{		
 		//if we selected END key
-		///TODO: add key of the hash-map into each key
-		///      so we could check pressed keys functionality
-		///      without testing KeyboardMain
-		if(!trackingMode && (keyboardMain.get(KEYBOARD_END_KEYCODE) == pressedKey))
+		if(!trackingMode && (pressedKey != null) && (pressedKey.getKeyId() == KEYBOARD_END_KEYCODE))
 		{
 			Log.v("test", "END key pressed");
 			finishedInput();
@@ -427,7 +426,7 @@ public class GraphKeyboard
 		{
 			Log.v("test", "fixed is " + pressedKey.keyString);
 		
-			fixedKey = new KeyboardKey(pressedKey);
+			fixedKey = new KeyboardKey(nonkeys + KEYBOARD_USER_INDEX, pressedKey);
 		
 			fixedKey.paintKey.setColor(Color.RED);
 			fixedKey.paintFont.setColor(Color.RED);
@@ -438,7 +437,7 @@ public class GraphKeyboard
 				resultsView.addString(pressedKey.keyString);
 			}
 			
-			RenderShape fixed = new RenderShape(fixedKey.keyShape.getBounds(), nonkeys + KEYBOARD_USER_INDEX, fixedKey.keyString);
+			RenderShape fixed = new RenderShape(fixedKey.keyShape.getBounds(), fixedKey.getKeyId(), fixedKey.keyString);
 			fixed.rendered = true;
 			render.addShape(fixed);
 			nonkeys++;
@@ -506,7 +505,7 @@ public class GraphKeyboard
 						(int)Math.floor(side * Math.sqrt(key1.keyString.length() / 2)), 
 						(int)Math.floor(side * Math.sqrt(key1.keyString.length() / 2)));
 				
-				render.addShape(new RenderShape(newBounds, KEYBOARD_END_KEYCODE, key1.keyString));
+				renderAddKey(newBounds, key1);
 			}
 		}
 		
@@ -524,7 +523,7 @@ public class GraphKeyboard
 						
 				wordStr = wordStr.substring(word.length());
 						
-				KeyboardKey key1 = new KeyboardKey(wordStr);
+				KeyboardKey key1 = new KeyboardKey(nonkeys + KEYBOARD_USER_INDEX, wordStr);
 					
 				key1.paintFont.setColor(Color.WHITE);
 				key1.paintKey.setColor(Color.WHITE);
@@ -533,8 +532,8 @@ public class GraphKeyboard
 								(int)Math.floor(side * Math.sqrt(wordStr.length() / 2)), 
 								(int)Math.floor(side * Math.sqrt(wordStr.length() / 2)));
 					
-				keyboardMain.put(nonkeys + KEYBOARD_USER_INDEX, key1);
-				render.addShape(new RenderShape(newBounds, nonkeys + KEYBOARD_USER_INDEX, key1.keyString));
+				keyboardMain.put(key1.getKeyId(), key1);
+				renderAddKey(newBounds, key1);
 				nonkeys++;
 			}
 		}
@@ -554,8 +553,7 @@ public class GraphKeyboard
 				key1.paintKey.setColor(Color.WHITE);
 				
 				Rect newBounds = new Rect(0, 0, side, side);
-				
-				render.addShape(new RenderShape(newBounds, (int)(reversChars.charAt(freqLen - charsLen + i)), key1.keyString));
+				renderAddKey(newBounds, key1);
 			}
 			
 			//4. Render most frequent letters
@@ -571,28 +569,23 @@ public class GraphKeyboard
 				key1.paintKey.setColor(Color.BLUE);
 				
 				Rect newBounds = new Rect(0, 0, (int)(side * 0.8), (int)(side * 0.8));
-				
-				render.addShape(new RenderShape(newBounds, (int)(reversChars.charAt(i)), key1.keyString));
+				renderAddKey(newBounds, key1);
 			}
 			
 			//5. Render rest
 			
-			for (Entry<Integer, KeyboardKey> entry : keyboardMain.entrySet()) 
+			for (KeyboardKey key1 : keyboardMain.values()) 
 			{				
-				KeyboardKey key1 = entry.getValue();
-				Integer id = entry.getKey();
-				
 				if(frequentChars.contains(key1.keyString))
 					continue;
-				if(id >= KEYBOARD_USER_INDEX)
+				if(key1.getKeyId() >= KEYBOARD_USER_INDEX)
 					continue;
 				
 				key1.paintFont.setColor(Color.GREEN);
 				key1.paintKey.setColor(Color.GREEN);
 				
 				Rect newBounds = new Rect(0, 0, (int)(side * 0.5), (int)(side * 0.5));
-				
-				render.addShape(new RenderShape(newBounds, id, key1.keyString));
+				renderAddKey(newBounds, key1);
 			}
 		}
 		else
@@ -600,20 +593,16 @@ public class GraphKeyboard
 			//6. Render all letters
 			
 			//if no suggested chars found
-			for (Entry<Integer, KeyboardKey> entry : keyboardMain.entrySet()) 
+			for (KeyboardKey key1 : keyboardMain.values()) 
 			{				
-				KeyboardKey key1 = entry.getValue();
-				Integer id = entry.getKey();
-				
-				if(id == KEYBOARD_END_KEYCODE)
+				if(key1.getKeyId() == KEYBOARD_END_KEYCODE)
 					continue;
 				
 				key1.paintFont.setColor(Color.GRAY);
 				key1.paintKey.setColor(Color.GRAY);
 				
 				Rect newBounds = new Rect(0, 0, (int)(side * 0.5), (int)(side * 0.5));
-				
-				render.addShape(new RenderShape(newBounds, id, key1.keyString));
+				renderAddKey(newBounds, key1);
 			}
 		}
 		

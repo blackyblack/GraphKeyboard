@@ -24,14 +24,18 @@ public class KeyboardKey
 	public String keyString;
 	//shape of the key
 	public ShapeDrawable keyShape;
+	//unique identifier of the key
+	private int keyId;
 	
 	//how to draw a key
 	public Paint paintKey;
 	//how to draw a text
 	public Paint paintFont;
 	
-	public KeyboardKey()
+	public KeyboardKey(int keyId)
 	{
+		this.keyId = keyId;
+		
 		paintKey = new Paint();
 		paintKey.setColor(Color.GREEN);
 		paintKey.setStyle(Style.STROKE);
@@ -47,20 +51,20 @@ public class KeyboardKey
 	}
 	
 	//create key with round shape as default
-	public KeyboardKey(String keyString)
+	public KeyboardKey(int keyId, String keyString)
 	{
-		this();
+		this(keyId);
 			
 		this.keyString = keyString;
 	}
 	
-	//copy constructor
-	public KeyboardKey(KeyboardKey key)
+	//copy constructor with new id
+	public KeyboardKey(int keyId, KeyboardKey key)
 	{
-		this();
-		
+		this(keyId);
+			
 		keyString = new String(key.keyString);
-		
+			
 		keyShape = new ShapeDrawable();
 		try {
 			keyShape.setShape(key.keyShape.getShape().clone());
@@ -68,6 +72,18 @@ public class KeyboardKey
 			e.printStackTrace();
 		}
 		keyShape.setBounds(key.keyShape.copyBounds());
+	}
+	
+	//copy constructor
+	public KeyboardKey(KeyboardKey key)
+	{
+		this(key.getKeyId(), key);
+	}
+	
+	//ask for identifier of the KeyboardKey
+	public int getKeyId()
+	{
+		return keyId;
 	}
 	
 	//return true if event should touch our key
